@@ -1,0 +1,15 @@
+services:
+  webmotion:
+    build: .
+    image: webmotion-vnc
+    restart: unless-stopped
+    ports:
+      - "6080:6080"          # browse to http://<host>:6080/vnc.html?autoconnect=1&resize=scale
+    environment:
+      DRIVE_URL: "http://192.168.2.100/"   # the XENAX drive's web address
+      SCREEN: "1280x960x24"
+      TRUST_APPLET: "1"                     # grant the applet full permissions (like accepting a signed applet)
+      VNC_PASSWORD: ""                      # set a password if others share this network
+      # APPLET_PAGE: "/config/applet.html"  # optional hand-written applet page
+    # volumes:
+    #   - ./applet.html:/config/applet.html:ro

@@ -1,0 +1,16 @@
+<!--
+  Use this only if the drive's own page does not work in appletviewer
+  (for example because it writes the <applet> tag with JavaScript).
+
+  1. Open http://<drive-ip>/drive/ through xenax-bridge, or view the page
+     source some other way, and find the applet's code / archive names.
+  2. Fill them in below, save the file next to docker-compose.yml, and set
+     APPLET_PAGE=/config/applet.html (see docker-compose.yml).
+-->
+<html><body>
+<applet codebase="http://192.168.2.100/"
+        code="REPLACE_ME.class"
+        archive="REPLACE_ME.jar"
+        width="1200" height="900">
+</applet>
+</body></html>

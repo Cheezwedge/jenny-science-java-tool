@@ -1,0 +1,5 @@
+// Grants the applet full permissions, like clicking "Run" on a signed applet
+// in a browser. Used only when TRUST_APPLET=1.
+grant {
+    permission java.security.AllPermission;
+};

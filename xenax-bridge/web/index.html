@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XENAX Bridge</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #fff; --text: #1d2330; --muted: #667085; --border: #d6d9e0;
+    --accent: #2459d6; --ok: #14804a; --warn: #b54708; --err: #c01c28; --mono: ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14161b; --panel: #1d2027; --text: #e6e8ec; --muted: #98a0ae; --border: #333844;
+            --accent: #6d97ff; --ok: #3ccf82; --warn: #f5a524; --err: #ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 10px 16px;
+           background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 16px; margin: 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--muted); margin-right: 6px; }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--err); }
+  .spacer { flex: 1; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--warn); color: var(--warn); }
+  main { display: grid; gap: 16px; padding: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); max-width: 1400px; margin: 0 auto; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  section h2 { font-size: 14px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .wide { grid-column: 1 / -1; }
+  button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg);
+           color: var(--text); cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #stop { background: var(--err); color: #fff; border-color: var(--err); font-weight: 700; padding: 8px 20px; }
+  input, select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border);
+                  background: var(--bg); color: var(--text); min-width: 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  .row input { flex: 1; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-family: var(--mono); }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; word-break: break-all; }
+  #log { font-family: var(--mono); font-size: 13px; height: 320px; overflow: auto; background: var(--bg);
+         border: 1px solid var(--border); border-radius: 6px; padding: 8px; white-space: pre-wrap; }
+  .l-tx { color: var(--accent); } .l-ok { color: var(--ok); } .l-warn { color: var(--warn); } .l-err { color: var(--err); }
+  .l-ts { color: var(--muted); }
+  small, .hint { color: var(--muted); }
+  a { color: var(--accent); }
+  #macros button { margin: 0 6px 6px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>XENAX Bridge</h1>
+  <span><span id="conn" class="dot"></span><span id="connText">…</span></span>
+  <span id="ro" class="badge" hidden>READ-ONLY</span>
+  <span class="spacer"></span>
+  <a href="/drive/" target="_blank" rel="noopener">Drive's original web page ↗</a>
+  <button id="reconnect">Reconnect</button>
+  <button id="stop" title="Sends SM (stop motion)">STOP</button>
+</header>
+
+<main>
+  <section>
+    <h2>Live status</h2>
+    <div class="row">
+      <label><input type="checkbox" id="poll"> Poll every</label>
+      <select id="pollMs"><option>250</option><option selected>500</option><option>1000</option><option>2000</option></select> ms
+    </div>
+    <dl class="kv" id="status"></dl>
+    <p class="hint">Queries are configurable below (“Status queries”).</p>
+  </section>
+
+  <section>
+    <h2>Power &amp; reference</h2>
+    <div class="row">
+      <button data-cmd="PW">Power on (PW)</button>
+      <button data-cmd="PWC">Power continue (PWC)</button>
+      <button data-cmd="PQ">Power off (PQ)</button>
+    </div>
+    <div class="row">
+      <button data-cmd="REF">Reference (REF)</button>
+      <button data-cmd="TE">Tell error (TE)</button>
+    </div>
+    <p class="hint">Command names follow the XENAX ASCII protocol. Verify them against the manual for your firmware before use.</p>
+  </section>
+
+  <section>
+    <h2>Motion</h2>
+    <div class="row">
+      <input id="spd" type="number" placeholder="Speed"><button data-param="SP" data-src="spd">Set SP</button>
+    </div>
+    <div class="row">
+      <input id="acc" type="number" placeholder="Acceleration"><button data-param="AC" data-src="acc">Set AC</button>
+    </div>
+    <div class="row">
+      <input id="pos" type="number" placeholder="Target position"><button class="primary" data-param="G" data-src="pos">Go (G)</button>
+    </div>
+    <div class="row">
+      <span>Jog from current position by</span>
+      <input id="jog" type="number" value="1000" style="max-width:110px">
+      <button id="jogMinus">−</button><button id="jogPlus">+</button>
+    </div>
+    <p class="hint">Jog reads TP, then sends G with the new target. Units are the drive's position units.</p>
+  </section>
+
+  <section>
+    <h2>Custom buttons</h2>
+    <div id="macros"></div>
+    <div class="row">
+      <input id="mLabel" placeholder="Label">
+      <input id="mCmd" placeholder="Command, e.g. TPS">
+      <button id="mAdd">Add</button>
+    </div>
+    <p class="hint">Saved in this browser only. Right-click a button to remove it.</p>
+  </section>
+
+  <section class="wide">
+    <h2>Terminal</h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:8px">
+      <input id="cmd" placeholder="Type an ASCII command and press Enter (↑/↓ for history)" autocomplete="off" spellcheck="false">
+      <button class="primary" id="send">Send</button>
+      <button id="clear">Clear</button>
+    </div>
+    <small>Replies: <b>&gt;</b> accepted · <b>?</b> unknown command · <b>#</b> not executable in current state.</small>
+  </section>
+
+  <section class="wide">
+    <h2>Status queries</h2>
+    <div class="row">
+      <input id="queries" spellcheck="false">
+      <button id="saveQueries">Save</button>
+    </div>
+    <p class="hint">Comma-separated list of commands polled for “Live status”, e.g. <code>TP, TPS, TE</code>.</p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('xb.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('xb.' + k, JSON.stringify(v)); } catch {} },
+};
+
+let info = {};
+let busy = Promise.resolve();
+
+function logLine(cls, text) {
+  const log = $('log');
+  const atBottom = log.scrollTop + log.clientHeight >= log.scrollHeight - 4;
+  const div = document.createElement('div');
+  const ts = document.createElement('span');
+  ts.className = 'l-ts';
+  ts.textContent = new Date().toLocaleTimeString() + '  ';
+  const body = document.createElement('span');
+  body.className = cls;
+  body.textContent = text;
+  div.append(ts, body);
+  log.append(div);
+  while (log.childElementCount > 1000) log.firstChild.remove();
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+function setConn(ok) {
+  $('conn').className = 'dot ' + (ok ? 'on' : 'off');
+  $('connText').textContent = (info.drive || '?') + ':' + (info.asciiPort || '?') + (ok ? ' connected' : ' not connected');
+}
+
+// Commands are serialised so polling and button presses never interleave.
+function send(cmd, { quiet = false } = {}) {
+  const p = busy.then(async () => {
+    if (!quiet) logLine('l-tx', '→ ' + cmd);
+    let r;
+    try {
+      const resp = await fetch('/api/cmd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'xenax-bridge' },
+        body: JSON.stringify({ cmd }),
+      });
+      r = await resp.json();
+    } catch (e) {
+      r = { error: 'bridge not reachable: ' + e.message };
+    }
+    if ('connected' in r) setConn(r.connected);
+    if (!quiet || r.error) {
+      if (r.error) logLine('l-err', '✗ ' + cmd + ': ' + r.error + (r.raw ? '  raw=' + JSON.stringify(r.raw) : ''));
+      else {
+        const cls = r.status === 'ok' ? 'l-ok' : 'l-warn';
+        const mark = { ok: '>', unknown: '? unknown command', 'not-executable': '# not executable now' }[r.status] || r.status;
+        logLine(cls, '← ' + (r.value ? r.value + '  ' : '') + mark + '  (' + r.ms + ' ms)');
+      }
+    }
+    return r;
+  });
+  busy = p.catch(() => {});
+  return p;
+}
+
+// Static command buttons.
+document.querySelectorAll('button[data-cmd]').forEach((b) => b.onclick = () => send(b.dataset.cmd));
+document.querySelectorAll('button[data-param]').forEach((b) => b.onclick = () => {
+  const v = $(b.dataset.src).value.trim();
+  if (v === '' || !/^-?\d+$/.test(v)) { logLine('l-warn', 'Enter a whole number first.'); return; }
+  send(b.dataset.param + v);
+});
+$('stop').onclick = () => {
+  // Bypass the queue so STOP is never stuck behind a slow poll.
+  logLine('l-err', '→ SM (STOP)');
+  fetch('/api/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'xenax-bridge' },
+                      body: JSON.stringify({ cmd: 'SM' }) })
+    .then((r) => r.json()).then((r) => logLine(r.error ? 'l-err' : 'l-ok', '← ' + (r.error || r.status)));
+};
+$('reconnect').onclick = async () => {
+  const r = await fetch('/api/reconnect', { method: 'POST', headers: { 'X-Requested-With': 'xenax-bridge' } }).then((r) => r.json());
+  setConn(r.connected);
+  logLine(r.error ? 'l-err' : 'l-ok', r.error || 'Reconnected.');
+};
+
+async function jog(sign) {
+  const step = parseInt($('jog').value, 10);
+  if (!Number.isFinite(step)) return;
+  const r = await send('TP');
+  const cur = parseInt(r.value, 10);
+  if (r.status !== 'ok' || !Number.isFinite(cur)) { logLine('l-warn', 'Could not read current position.'); return; }
+  send('G' + (cur + sign * step));
+}
+$('jogMinus').onclick = () => jog(-1);
+$('jogPlus').onclick = () => jog(1);
+
+// Terminal with history.
+const hist = store.get('history', []);
+let hIdx = hist.length;
+function sendTerminal() {
+  const c = $('cmd').value.trim();
+  if (!c) return;
+  if (hist[hist.length - 1] !== c) { hist.push(c); if (hist.length > 100) hist.shift(); store.set('history', hist); }
+  hIdx = hist.length;
+  $('cmd').value = '';
+  send(c);
+}
+$('send').onclick = sendTerminal;
+$('cmd').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendTerminal();
+  else if (e.key === 'ArrowUp' && hIdx > 0) { $('cmd').value = hist[--hIdx]; e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { hIdx = Math.min(hist.length, hIdx + 1); $('cmd').value = hist[hIdx] || ''; e.preventDefault(); }
+});
+$('clear').onclick = () => { $('log').textContent = ''; };
+
+// Custom macro buttons.
+let macros = store.get('macros', [
+  { label: 'Process status (TPS)', cmd: 'TPS' },
+  { label: 'Position (TP)', cmd: 'TP' },
+]);
+function renderMacros() {
+  const box = $('macros');
+  box.textContent = '';
+  macros.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.textContent = m.label;
+    b.title = m.cmd;
+    b.onclick = () => send(m.cmd);
+    b.oncontextmenu = (e) => { e.preventDefault(); if (confirm('Remove "' + m.label + '"?')) { macros.splice(i, 1); store.set('macros', macros); renderMacros(); } };
+    box.append(b);
+  });
+}
+$('mAdd').onclick = () => {
+  const cmd = $('mCmd').value.trim();
+  if (!cmd) return;
+  macros.push({ label: $('mLabel').value.trim() || cmd, cmd });
+  store.set('macros', macros);
+  $('mLabel').value = $('mCmd').value = '';
+  renderMacros();
+};
+renderMacros();
+
+// Status polling.
+let queries = store.get('queries', 'TP, TPS, TE');
+$('queries').value = queries;
+$('saveQueries').onclick = () => { queries = $('queries').value; store.set('queries', queries); renderStatusRows(); };
+function queryList() { return queries.split(',').map((s) => s.trim()).filter(Boolean); }
+function renderStatusRows() {
+  const dl = $('status');
+  dl.textContent = '';
+  for (const q of queryList()) {
+    const dt = document.createElement('dt'); dt.textContent = q;
+    const dd = document.createElement('dd'); dd.id = 'st-' + q; dd.textContent = '–';
+    dl.append(dt, dd);
+  }
+}
+renderStatusRows();
+async function pollOnce() {
+  for (const q of queryList()) {
+    const r = await send(q, { quiet: true });
+    const dd = document.getElementById('st-' + q);
+    if (dd) dd.textContent = r.error ? 'error' : (r.status === 'ok' ? (r.value || '(no value)') : r.status);
+  }
+}
+let pollTimer = null;
+async function pollLoop() {
+  if (!$('poll').checked) { pollTimer = null; return; }
+  await pollOnce();
+  pollTimer = setTimeout(pollLoop, parseInt($('pollMs').value, 10));
+}
+$('poll').onchange = () => { if ($('poll').checked && !pollTimer) pollLoop(); };
+
+fetch('/api/info').then((r) => r.json()).then((i) => {
+  info = i;
+  setConn(i.connected);
+  $('ro').hidden = !i.readOnly;
+  logLine('l-ts', 'xenax-bridge ' + i.version + ' → drive ' + i.drive + ' (ASCII port ' + i.asciiPort + ', web port ' + i.httpPort + ')');
+}).catch(() => logLine('l-err', 'Bridge not reachable.'));
+</script>
+</body>
+</html>
