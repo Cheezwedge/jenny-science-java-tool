@@ -100,3 +100,25 @@ func TestIsQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsValidate(t *testing.T) {
+	ok := []Settings{defaultSettings(), {Drive: "xenax-1.local", AsciiPort: 10001, HTTPPort: 8080}}
+	bad := []Settings{{Drive: "", AsciiPort: 10001, HTTPPort: 80}, {Drive: "1.2.3.4:80", AsciiPort: 10001, HTTPPort: 80},
+		{Drive: "1.2.3.4", AsciiPort: 0, HTTPPort: 80}, {Drive: "a/b", AsciiPort: 1, HTTPPort: 1}}
+	for _, s := range ok {
+		if err := s.Validate(); err != nil {
+			t.Errorf("%+v: unexpected %v", s, err)
+		}
+	}
+	for _, s := range bad {
+		if s.Validate() == nil {
+			t.Errorf("%+v: expected error", s)
+		}
+	}
+}
+
+func TestCheckNetwork(t *testing.T) {
+	if nc := checkNetwork("not-an-ip"); nc.DriveIsIP || nc.SameNet {
+		t.Errorf("hostname: %+v", nc)
+	}
+}

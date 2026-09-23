@@ -38,6 +38,21 @@ func NewDriveConn(addr string, timeout time.Duration) *DriveConn {
 	return &DriveConn{addr: addr, timeout: timeout}
 }
 
+// SetAddr points the connection at a different drive, dropping any open
+// connection to the old one.
+func (d *DriveConn) SetAddr(addr string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if addr == d.addr {
+		return
+	}
+	d.addr = addr
+	if d.conn != nil {
+		d.conn.Close()
+		d.conn = nil
+	}
+}
+
 func (d *DriveConn) Connected() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()

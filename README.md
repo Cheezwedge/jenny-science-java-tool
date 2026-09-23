@@ -10,7 +10,7 @@ Java. This repo gives you two workarounds:
 | | [A. `xenax-bridge`](#a-xenax-bridge-no-java-at-all) | [B. `webmotion-vnc`](#b-webmotion-vnc-the-original-java-gui-streamed-to-your-browser) |
 |---|---|---|
 | What you see | A new HTML5 control page (terminal, power/reference, move, live status, custom buttons) | The **original** WebMotion Java GUI, shown in a browser tab |
-| Needs on the laptop | One small `.exe` file, nothing installed | Just a web browser |
+| Needs on the Windows laptop | One small `.exe` file, nothing installed, no admin rights | Just a web browser |
 | Needs elsewhere | Nothing | A machine that runs Docker (Linux PC, Raspberry Pi 4/5, VM, colleague's PC) on the drive's network |
 | Covers | Everything the ASCII command set can do | Everything WebMotion can do (graphs, tuning, parameter pages…) |
 
@@ -36,32 +36,49 @@ control page to your browser at `http://127.0.0.1:8080`.
                          └──── /drive/ ──HTTP 80──▶ drive's own web pages
 ```
 
-### Get it
+### Get it (Windows)
 
 * **Download:** GitHub → *Actions* → latest **build** run → artifact
-  `xenax-bridge` (or a *Release* if one is tagged). Pick
-  `xenax-bridge-windows-amd64.exe` for a normal Windows laptop.
+  `xenax-bridge` (or a *Release* if one is tagged). Use
+  `xenax-bridge-windows-amd64.exe` (`-arm64` only for ARM laptops such as
+  Surface Pro X / Snapdragon). It's a single file. Put it anywhere, e.g. your
+  Desktop or a USB stick. Nothing is installed and no admin rights are needed.
 * **Or build it** (Go 1.24+): `cd xenax-bridge && go build .`
+
+The `.exe` isn't code-signed, so Windows SmartScreen may say *"Windows protected
+your PC"*. If your IT policy allows it, click **More info → Run anyway**.
+Otherwise ask IT to allow the file (the `SHA256SUMS.txt` next to it helps them
+check it).
 
 ### Run it
 
-1. Connect the laptop to the drive (Ethernet). Give your network adapter a static
-   IP in the drive's subnet, e.g. `192.168.2.10 / 255.255.255.0` if the drive is
-   at the factory default `192.168.2.100`. (Changing adapter settings may itself
-   need admin rights; a USB‑Ethernet adapter your IT has approved helps.)
-2. Start the bridge. Double-clicking uses the default drive IP; otherwise run from a
-   command prompt:
+1. **Connect the laptop to the drive** with an Ethernet cable (or a USB‑Ethernet
+   adapter), directly or through a switch.
+2. **Give that adapter an address in the drive's subnet.** The factory default
+   drive IP is `192.168.2.100`, so use for example `192.168.2.10`, mask
+   `255.255.255.0`:
+   *Settings → Network & internet → Ethernet → (adapter) → IP assignment → Edit →
+   Manual → IPv4 on*. Leave gateway and DNS empty.
+   This step may need admin rights. If it's blocked, ask IT to set it once for that
+   adapter. Your normal Wi‑Fi/VPN connection is not affected.
+3. **Double-click `xenax-bridge-windows-amd64.exe`.** A console window opens
+   (keep it open; closing it quits the bridge) and your default browser opens
+   the control page, usually `http://127.0.0.1:8080`. If port 8080 is taken,
+   another free port is chosen and shown in the console.
+4. In the **Connection** box, enter the drive's IP and click **Save & connect**.
+   It is remembered next time (in `%APPDATA%\xenax-bridge\settings.json`).
+   The box lists this PC's network adapters and warns with ✗ if none is in the
+   drive's subnet, which is the most common reason it won't connect.
 
-   ```
-   xenax-bridge-windows-amd64.exe -drive 192.168.2.100
-   ```
+Windows Firewall won't prompt, because the bridge only listens on `127.0.0.1` and
+only makes outgoing connections to the drive.
 
-3. Your browser opens `http://127.0.0.1:8080`. The green dot shows the ASCII
-   connection is up.
+Command-line options (optional; e.g. for a desktop shortcut with
+`-read-only` added to the *Target*):
 
 | Option | Default | Meaning |
 |---|---|---|
-| `-drive` | `192.168.2.100` | Drive IP / hostname |
+| `-drive` | last used, else `192.168.2.100` | Drive IP / hostname |
 | `-ascii-port` | `10001` | ASCII command port |
 | `-http-port` | `80` | Drive web server port (for `/drive/`) |
 | `-listen` | `127.0.0.1:8080` | Where the local page is served |
@@ -91,13 +108,18 @@ control page to your browser at `http://127.0.0.1:8080`.
 
 ```
 cd xenax-bridge
-go run ./cmd/fakedrive &          # tiny simulator on 127.0.0.1:10001
-go run . -drive 127.0.0.1
+go run ./cmd/fakedrive            # tiny simulator on 127.0.0.1:10001 (leave running)
+go run . -drive 127.0.0.1         # in a second terminal
 ```
 
 ---
 
 ## B. `webmotion-vnc` (the original Java GUI, streamed to your browser)
+
+> **Windows note:** the Windows laptops only need a browser for this option. The
+> container runs on a *separate* always-on box (a small Linux PC or Raspberry Pi
+> by the machine is ideal). Running it on a Windows laptop would need Docker
+> Desktop + WSL2, which requires admin rights and has the same IT hurdle as Java.
 
 If you need the full WebMotion GUI, run Java on **another** machine and view it
 from the laptop. The container runs the OpenJDK 8 `appletviewer` (it runs applets

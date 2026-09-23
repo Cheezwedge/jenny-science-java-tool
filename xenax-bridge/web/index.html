@@ -43,6 +43,9 @@
   .l-ts { color: var(--muted); }
   small, .hint { color: var(--muted); }
   a { color: var(--accent); }
+  label { display: inline-flex; gap: 6px; align-items: center; }
+  details { margin-top: 8px; } summary { cursor: pointer; color: var(--accent); }
+  #netMsg { font-family: var(--mono); margin-top: 4px; }
   #macros button { margin: 0 6px 6px 0; }
 </style>
 </head>
@@ -58,6 +61,28 @@
 </header>
 
 <main>
+  <section class="wide" id="setup">
+    <h2>Connection</h2>
+    <div class="row">
+      <label>Drive IP <input id="sDrive" style="width:160px" spellcheck="false"></label>
+      <label>ASCII port <input id="sAscii" type="number" style="width:90px"></label>
+      <label>Web port <input id="sHttp" type="number" style="width:80px"></label>
+      <button class="primary" id="sSave">Save &amp; connect</button>
+    </div>
+    <div id="netMsg" class="hint"></div>
+    <details id="netHelp">
+      <summary>How to put a Windows laptop on the drive's network</summary>
+      <ol>
+        <li>Plug the laptop's Ethernet port (or a USB-Ethernet adapter) into the drive, directly or through a switch.</li>
+        <li>Open <b>Settings → Network &amp; internet → Ethernet</b> and choose that adapter.</li>
+        <li>Next to <b>IP assignment</b> click <b>Edit</b> → <b>Manual</b> → turn on <b>IPv4</b>.</li>
+        <li>Enter an unused address in the drive's subnet, e.g. <code id="suggestIP">192.168.2.10</code>, subnet mask <code>255.255.255.0</code>. Leave gateway and DNS empty. Save.</li>
+        <li>Come back here. The adapter should appear above with a ✓.</li>
+      </ol>
+      <p>Changing adapter settings may need admin rights on managed laptops. If it's blocked, ask IT to give that adapter a static address, or to put the drive on a subnet your laptop already uses.</p>
+    </details>
+  </section>
+
   <section>
     <h2>Live status</h2>
     <div class="row">
@@ -95,7 +120,7 @@
     </div>
     <div class="row">
       <span>Jog from current position by</span>
-      <input id="jog" type="number" value="1000" style="max-width:110px">
+      <input id="jog" type="number" value="1000" style="flex:0 0 130px">
       <button id="jogMinus">−</button><button id="jogPlus">+</button>
     </div>
     <p class="hint">Jog reads TP, then sends G with the new target. Units are the drive's position units.</p>
@@ -301,10 +326,46 @@ async function pollLoop() {
 }
 $('poll').onchange = () => { if ($('poll').checked && !pollTimer) pollLoop(); };
 
-fetch('/api/info').then((r) => r.json()).then((i) => {
-  info = i;
-  setConn(i.connected);
-  $('ro').hidden = !i.readOnly;
+function showNetwork(nc) {
+  const box = $('netMsg');
+  box.textContent = '';
+  if (!nc) return;
+  const head = document.createElement('div');
+  if (!nc.driveIsIP) head.textContent = 'Drive address is a hostname, so the subnet check is skipped.';
+  else if (nc.sameNet) { head.textContent = '✓ This PC has an address in the drive\'s subnet.'; head.className = 'l-ok'; }
+  else { head.textContent = '✗ No network adapter on this PC is in the same subnet as ' + info.drive + '. See the steps below.'; head.className = 'l-err'; $('netHelp').open = true; }
+  box.append(head);
+  for (const a of nc.addrs || []) {
+    const d = document.createElement('div');
+    d.textContent = (a.sameNet ? '✓ ' : '· ') + a.interface + '  ' + a.cidr;
+    box.append(d);
+  }
+  const m = /^(\d+\.\d+\.\d+)\.(\d+)$/.exec(info.drive || '');
+  if (m) $('suggestIP').textContent = m[1] + '.' + (m[2] === '10' ? '11' : '10');
+}
+
+function loadInfo() {
+  return fetch('/api/info').then((r) => r.json()).then((i) => {
+    info = i;
+    setConn(i.connected);
+    $('ro').hidden = !i.readOnly;
+    $('sDrive').value = i.drive; $('sAscii').value = i.asciiPort; $('sHttp').value = i.httpPort;
+    showNetwork(i.network);
+    return i;
+  });
+}
+
+$('sSave').onclick = async () => {
+  const body = { drive: $('sDrive').value.trim(), asciiPort: +$('sAscii').value, httpPort: +$('sHttp').value };
+  const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'xenax-bridge' },
+                                           body: JSON.stringify(body) }).then((r) => r.json()).catch((e) => ({ error: e.message }));
+  if (r.warning) logLine('l-warn', r.warning);
+  logLine(r.error ? 'l-err' : 'l-ok', r.error || ('Connected to ' + body.drive + '.'));
+  await loadInfo();
+};
+$('sDrive').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('sSave').click(); });
+
+loadInfo().then((i) => {
   logLine('l-ts', 'xenax-bridge ' + i.version + ' → drive ' + i.drive + ' (ASCII port ' + i.asciiPort + ', web port ' + i.httpPort + ')');
 }).catch(() => logLine('l-err', 'Bridge not reachable.'));
 </script>
