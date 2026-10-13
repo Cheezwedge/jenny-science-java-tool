@@ -155,3 +155,13 @@ Settings (in `docker-compose.yml`):
 
 If the applet window is closed or the drive reboots, the viewer restarts on its own
 after 3 seconds.
+
+---
+
+## Project status
+
+Both tools have been tested only against the bundled simulator
+(`xenax-bridge/cmd/fakedrive`) and a stand-in test applet, **not yet on a real
+XENAX drive**. The Windows `.exe` is CI-built but hasn't been run on Windows yet.
+See [`TODO.md`](TODO.md) for open items, [`CHANGELOG.md`](CHANGELOG.md) for
+history, and [`CLAUDE.md`](CLAUDE.md) for design notes aimed at contributors.
